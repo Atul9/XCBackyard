@@ -1,192 +1,207 @@
-def make_project_playground(source_project_path, result_dir_path)
-    require 'fileutils'
+require 'fileutils'
+require 'xcodeproj'
+require 'erb'
 
-    if Dir.exist?(result_dir_path)
-        FileUtils.rm_r(result_dir_path)
-    end
+module XCBackyard
 
-    Dir.mkdir(result_dir_path)
+    ROOT_PATH = Pathname.new(File.expand_path('..', __FILE__))
+    TEMPLATES_DIR_PATH = Pathname.new(File.join(ROOT_PATH, "Templates"))
 
-    result_path = File.join(result_dir_path, File.basename(source_project_path))
+    class BackyardBuilder
+        def initialize(source_project_path)
+            @source_project_path = source_project_path
+        end
 
-    FileUtils.cp_r(source_project_path, result_dir_path, remove_destination:true)
+        def source_project_path
+            @source_project_path
+        end
 
-    return result_path    
-end
+        # Create directory and copy source xcodeproj
+        def copy_xcodeproj_file(result_dir_path)
 
-def change_base_path(xcodeproj_path, source_xcodeproj_path)
-
-    require 'xcodeproj'
-
-    source_project = Xcodeproj::Project.open(source_xcodeproj_path)
-    project = Xcodeproj::Project.open(xcodeproj_path)
-
-    project.groups.each do |group|
-        source_group = source_project.groups.select{|x| x.name == group.name && x.path == group.path}.first
-        if not source_group.nil?
-            if source_group.path.nil?
-                group.name = source_group.name
-            else
-                group.name = File.basename(source_group.path, ".*")
+            if Dir.exist?(result_dir_path)
+                FileUtils.rm_r(result_dir_path)
             end
-            group.path = source_group.real_path.to_s
+
+            Dir.mkdir(result_dir_path)
+
+            result_path = File.join(result_dir_path, File.basename(@source_project_path))
+
+            FileUtils.cp_r(@source_project_path, result_dir_path, remove_destination:true)
+
+            return result_path    
         end
-    end
 
-    project.save
-end
+        # Set paths in xcodeproj to source xcodeproj paths
+        def change_base_path(xcodeproj_path)
 
-def create_workspace(source_dir_path, xcodeproj_path)
+            source_project = Xcodeproj::Project.open(@source_project_path)
+            project = Xcodeproj::Project.open(xcodeproj_path)
 
-    require 'xcodeproj'
+            project.groups.each do |group|
+                source_group = source_project.groups.select{|x| x.name == group.name && x.path == group.path}.first
+                if not source_group.nil?
+                    if source_group.path.nil?
+                        group.name = source_group.name
+                    else
+                        group.name = File.basename(source_group.path, ".*")
+                    end
+                    group.path = source_group.real_path.to_s
+                end
+            end
 
-    result_path = File.join(source_dir_path, "Test.xcworkspace")
-
-    if File.exist?(result_path)
-        FileUtils.rm_r(result_path)
-    end
-
-    workspace = Xcodeproj::Workspace.new_from_xcworkspace(result_path)
-
-    workspace << xcodeproj_path
-
-    workspace.save_as(result_path)
-
-    return result_path
-
-end
-
-def create_framework_dir(source_dir_path, framework_name)
-
-    def create_info_plist(dir_path)
-
-        require 'erb'
-
-        result_path = File.join(dir_path, "Info.plist")
-        template = ERB.new(File.read(File.join("Templates", "Info.plist.erb")))
-        result_content = template.result(binding)
-        File.open(result_path, "w") do |file|
-            file.puts result_content
+            project.save
         end
-    end
 
-    def create_header_file(dir_path, framework_name)
+        # Create new workspace with xcodeproj
+        def create_workspace(name, source_dir_path, xcodeproj_path)
 
-        require 'erb'
+            # Configure path
 
-        result_path = File.join(dir_path, framework_name + ".h")
-        template = ERB.new(File.read(File.join("Templates", "Framework.h.erb")))
-        result_content = template.result(binding)
-        File.open(result_path, "w") do |file|
-            file.puts result_content
+            result_path = File.join(source_dir_path, name + ".xcworkspace")
+
+            if File.exist?(result_path)
+                FileUtils.rm_r(result_path)
+            end
+
+            # Create and configure workspace
+
+            workspace = Xcodeproj::Workspace.new_from_xcworkspace(result_path)
+
+            workspace << xcodeproj_path
+
+            workspace.save_as(result_path)
+
+            return result_path
+
         end
-    end
 
-    result_dir_path = File.join(source_dir_path, framework_name)
+        # Create framework directory with Info.plist and header file
+        def create_framework_dir(source_dir_path, framework_name)
 
-    if not Dir.exist?(result_dir_path)
-        Dir.mkdir(result_dir_path)
-    end
+            result_dir_path = File.join(source_dir_path, framework_name)
 
-    create_info_plist(result_dir_path)
-    create_header_file(result_dir_path, framework_name)
+            if not Dir.exist?(result_dir_path)
+                Dir.mkdir(result_dir_path)
+            end
 
-    return result_dir_path
-end
+            [["Info.plist", "Info.plist.erb"], [framework_name + ".h", "Framework.h.erb"]]
+            .each { | (result_file_name, template_file_name) |
+                result_path = File.join(result_dir_path, result_file_name)
+                template = ERB.new(File.read(File.join(TEMPLATES_DIR_PATH, template_file_name)))
+                result_content = template.result(binding)
+                File.open(result_path, "w") do |file|
+                    file.puts result_content
+                end
+            }
 
-def create_playground(source_dir_path, framework_name)
-    
-    require 'erb'
-
-    def create_contents_swift(dir_path, framework_name)
-
-        result_path = File.join(dir_path, "Contents.swift")
-        template = ERB.new(File.read(File.join("Templates", "Playground", "Contents.swift.erb")))
-        result_content = template.result(binding)
-        File.open(result_path, "w") do |file|
-            file.puts result_content
+            return result_dir_path
         end
-    end
 
-    def create_contents_config(dir_path, framework_name)
+        # Create playground package
+        def create_playground(source_dir_path, playground_name, framework_name)
+            
+            result_dir_path = File.join(source_dir_path, playground_name + ".playground")
 
-        result_path = File.join(dir_path, "contents.xcplayground")
-        template = ERB.new(File.read(File.join("Templates", "Playground", "contents.xcplayground.erb")))
-        result_content = template.result(binding)
-        File.open(result_path, "w") do |file|
-            file.puts result_content
+            if not Dir.exist?(result_dir_path)
+                Dir.mkdir(result_dir_path)
+            end
+
+            [["Contents.swift", "Contents.swift.erb"], ["contents.xcplayground", "contents.xcplayground.erb"]]
+            .each { | (result_file_name, template_file_name) |
+                result_path = File.join(result_dir_path, result_file_name)
+                template = ERB.new(File.read(File.join(TEMPLATES_DIR_PATH, "Playground", template_file_name)))
+                result_content = template.result(binding)
+                File.open(result_path, "w") do |file|
+                    file.puts result_content
+                end
+            }
+
+            return result_dir_path
         end
+
+         # Add framework target to xcodeproj
+        def add_framework_target(framework_name, xcodeproj_path)
+
+            project = Xcodeproj::Project.open(xcodeproj_path)
+
+            # Create framework support files
+            dir_path = File.dirname(xcodeproj_path)
+            framework_dir_path = create_framework_dir(dir_path, framework_name)
+            
+            # Create group and add files to xcodeproj
+            framework_group = project.new_group(framework_name, framework_dir_path)
+            Dir.entries(framework_dir_path).select{|x| x != "." && x != ".."}.each {|x| framework_group.new_file(x) }
+
+            # Create framework target
+            target = project.new_target(:framework, framework_name, :ios, nil, nil, :swift)
+
+            # Add header file build phase
+            header_file = framework_group.files.select { |file| File.extname(file.path) == '.h'}.first
+            headers_build_phase = project.new(Xcodeproj::Project::Object::PBXHeadersBuildPhase)
+            target.build_phases << headers_build_phase
+            
+            headers_build_phase.add_file_reference(header_file)
+            header_file.build_files.each do |buildFile|
+              buildFile.settings = { "ATTRIBUTES" => ["Public"] }
+            end
+
+            # Set path to Info.plist file
+            target.build_configurations.each { |configuration| target.build_settings(configuration.name)['INFOPLIST_FILE'] = File.join(framework_name, "Info.plist") }
+
+            # Save changes
+            project.save
+        end
+
+        # Create Xcode Playground package and add to workspace
+        def add_playground_to_workspace(playground_name, framework_name, workspace_path)
+            
+            # Create playground
+            dir_path = File.dirname(workspace_path)
+            playground_path = create_playground(dir_path, playground_name, framework_name)
+
+            # Add playground to workspace
+            workspace = Xcodeproj::Workspace.new_from_xcworkspace(workspace_path)
+            workspace << playground_path
+
+            # Save changes
+            workspace.save_as(workspace_path)
+        end
+
+        # Copy xcodeproj to external path and wrap it into workspace with playground
+        def create_separate_workspace_with_backyard(result_dir_path)
+
+            base_name = "Backyard"
+            framework_name = base_name + "Framework"
+            playground_name = base_name + "Playground"
+            workspace_name = File.basename(@source_project_path, ".*") + "-" + base_name
+
+            # Copy xcodeproj and update paths
+            result_proj_path = self.copy_xcodeproj_file(result_dir_path)
+            self.change_base_path(result_proj_path)
+
+            # Add framework target in result xcodeproj
+            self.add_framework_target(framework_name, result_proj_path)
+
+            # Create workspace with result xcodeproj
+            workspace_path = self.create_workspace(workspace_name, result_dir_path, result_proj_path)
+
+            # Add playground to workspace
+            self.add_playground_to_workspace(playground_name, framework_name, workspace_path)
+
+            return workspace_path, result_proj_path
+        end
+
     end
 
-    result_dir_path = File.join(source_dir_path, framework_name + ".playground")
-
-    if not Dir.exist?(result_dir_path)
-        Dir.mkdir(result_dir_path)
-    end
-
-    create_contents_swift(result_dir_path, framework_name)
-    create_contents_config(result_dir_path, framework_name)
-
-    return result_dir_path
 end
-
-def add_playground_framework_target(xcodeproj_path, workspace_path)
-
-    require 'xcodeproj'
-
-    project = Xcodeproj::Project.open(xcodeproj_path)
-
-    # first_non_test_target = project.targets.select{ |x| not x.test_target_type? }.first
-
-    dir_path = File.dirname(xcodeproj_path)
-    framework_name = "TestPlaygroundFramework"
-    framework_dir_path = create_framework_dir(dir_path, framework_name)
-    framework_group = project.new_group(framework_name, framework_dir_path)
-    Dir.entries(framework_dir_path).select{|x| x != "." && x != ".."}.each {|x| framework_group.new_file(x) }
-
-    target = project.new_target(:framework, framework_name, :ios, nil, nil, :swift)
-
-    header_file = framework_group.files.select { |file| File.extname(file.path) == '.h'}.first
-    headers_build_phase = project.new(Xcodeproj::Project::Object::PBXHeadersBuildPhase)
-    target.build_phases << headers_build_phase
-    
-    headers_build_phase.add_file_reference(header_file)
-    header_file.build_files.each do |buildFile|
-      buildFile.settings = { "ATTRIBUTES" => ["Public"] }
-    end
-
-    target.build_settings('Debug')['INFOPLIST_FILE'] = File.join(framework_name, "Info.plist")
-    
-    project.save
-
-    # Create playground
-
-    playground_path = create_playground(dir_path, framework_name)
-
-    # Add playground to workspace
-
-    workspace = Xcodeproj::Workspace.new_from_xcworkspace(workspace_path)
-
-    workspace << playground_path
-
-    workspace.save_as(workspace_path)
-
-end
-
-# ruby playground_extractor.rb "/Users/gregoryvit/Development/Swift/surf/NaviAddress-iOS/NaviAddress-iOS.xcodeproj" "/Users/gregoryvit/Development/Swift/surf"
 
 proj_file = ARGV[0]
 result_dir = File.join(ARGV[1], "TestDir")
 
-result_proj_path = make_project_playground(proj_file, result_dir)
+backyard = XCBackyard::BackyardBuilder.new(proj_file)
 
-change_base_path(result_proj_path, proj_file)
-
-workspace_path = create_workspace(result_dir, result_proj_path)
-
-add_playground_framework_target(result_proj_path, workspace_path)
+workspace_path, result_proj_path = backyard.create_separate_workspace_with_backyard(result_dir)
 
 system("open " + workspace_path)
-
-# system("sleep 3; osascript run_xcode.scpt")
 
