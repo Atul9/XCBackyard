@@ -195,13 +195,3 @@ module XCBackyard
     end
 
 end
-
-proj_file = ARGV[0]
-result_dir = File.join(ARGV[1], "TestDir")
-
-backyard = XCBackyard::BackyardBuilder.new(proj_file)
-
-workspace_path, result_proj_path = backyard.create_separate_workspace_with_backyard(result_dir)
-
-system("open " + workspace_path)
-

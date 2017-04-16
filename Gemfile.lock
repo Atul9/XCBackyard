@@ -1,0 +1,41 @@
+PATH
+  remote: .
+  specs:
+    xcbackyard (0.1.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    CFPropertyList (2.3.5)
+    activesupport (4.2.8)
+      i18n (~> 0.7)
+      minitest (~> 5.1)
+      thread_safe (~> 0.3, >= 0.3.4)
+      tzinfo (~> 1.1)
+    claide (1.0.1)
+    colored2 (3.1.2)
+    i18n (0.8.1)
+    minitest (5.10.1)
+    nanaimo (0.2.3)
+    rake (10.4.2)
+    thread_safe (0.3.6)
+    tzinfo (1.2.3)
+      thread_safe (~> 0.1)
+    xcodeproj (1.4.3)
+      CFPropertyList (~> 2.3.3)
+      activesupport (>= 3)
+      claide (>= 1.0.1, < 2.0)
+      colored2 (~> 3.1)
+      nanaimo (~> 0.2.3)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  bundler (~> 1.14)
+  rake (~> 10.0)
+  xcbackyard!
+  xcodeproj
+
+BUNDLED WITH
+   1.14.6
