@@ -25,9 +25,9 @@ module XCBackyard
 
             Dir.mkdir(result_dir_path)
 
-            result_path = File.join(result_dir_path, File.basename(@source_project_path))
+            result_path = File.join(result_dir_path, File.basename(source_project_path))
 
-            FileUtils.cp_r(@source_project_path, result_dir_path, remove_destination:true)
+            FileUtils.cp_r(source_project_path, result_dir_path, remove_destination:true)
 
             return result_path    
         end
@@ -35,7 +35,7 @@ module XCBackyard
         # Set paths in xcodeproj to source xcodeproj paths
         def change_base_path(xcodeproj_path)
 
-            source_project = Xcodeproj::Project.open(@source_project_path)
+            source_project = Xcodeproj::Project.open(source_project_path)
             project = Xcodeproj::Project.open(xcodeproj_path)
 
             project.groups.each do |group|
@@ -168,13 +168,99 @@ module XCBackyard
             workspace.save_as(workspace_path)
         end
 
+        # Remove Xcode Playground package from workspace
+        def remove_playground_from_workspace(playground_name, framework_name, workspace_path)
+            
+            # Delete playground package
+            dir_path = File.dirname(workspace_path)
+            result_playgorund_path = File.join(dir_path, playground_name + ".playground")
+            
+            if File.exist?(result_playgorund_path)
+                FileUtils.rm_r(result_playgorund_path)
+            end
+
+            # Remove playground from workspace
+            workspace = Xcodeproj::Workspace.new_from_xcworkspace(workspace_path)
+            node_to_delete = workspace.file_references.select { |file_ref| file_ref.path == result_playgorund_path }.map { |file_ref| file_ref.to_node }.first
+
+            if not node_to_delete.nil?
+                workspace.document.root.each_element_with_attribute('location', node_to_delete.attributes["location"]) {|e| workspace.document.root.delete_element(e)}
+                workspace.save_as(workspace_path)
+            end
+        end
+
+        # Remove framework from projects
+        def remove_framework_from_xcodeproj(framework_name)
+
+            # Delete framework files
+            source_dir_path = File.dirname(source_project_path)
+            result_dir_path = File.join(source_dir_path, framework_name)
+            
+            if File.exist?(result_dir_path)
+                FileUtils.rm_r(result_dir_path)
+            end
+
+            # Remove framework target from xcodeproj
+            project = Xcodeproj::Project.open(source_project_path)
+
+            target_to_remove = project.targets.select { |target| target.name == framework_name }.first
+
+            if not target_to_remove.nil? 
+                # Build phases
+                target_to_remove.build_phases.each { |phase| 
+                    phase.clear 
+                    phase.clear_build_files
+                    phase.remove_from_project
+                }
+
+                if not target_to_remove.build_configuration_list.nil? 
+                    target_to_remove.build_configuration_list.remove_from_project
+                end
+
+                target_to_remove.remove_from_project
+            end
+
+            # Remove framework files group
+            framework_group = project.groups.select { |group| group.path == framework_name }.first
+            if not framework_group.nil? 
+                framework_group.clear
+                framework_group.remove_from_project
+            end
+
+            project.files.each { |file| 
+                if file.path == framework_name + ".framework"
+                    file.remove_from_project
+                end
+            }
+
+            project.frameworks_group.groups.each { |framework_group| 
+                if framework_group.name == 'iOS'
+                    framework_group.files.each { |file|
+                        if file.name == 'Foundation.framework'
+                            file.remove_from_project
+                            framework_group.clear
+                            framework_group.remove_from_project
+                        end
+                    }
+                end
+            }
+
+            project.objects.select { |object| object.isa == "PBXBuildFile" }.each { |e| 
+                if e.file_ref.nil?
+                    e.remove_from_project
+                end
+            }
+
+            project.save
+        end
+
         # Copy xcodeproj to external path and wrap it into workspace with playground
         def create_separate_workspace_with_backyard(result_dir_path)
 
             base_name = "Backyard"
             framework_name = base_name + "Framework"
             playground_name = base_name + "Playground"
-            workspace_name = File.basename(@source_project_path, ".*") + "-" + base_name
+            workspace_name = File.basename(source_project_path, ".*") + "-" + base_name
 
             # Copy xcodeproj and update paths
             result_proj_path = self.copy_xcodeproj_file(result_dir_path)
@@ -190,6 +276,35 @@ module XCBackyard
             self.add_playground_to_workspace(playground_name, framework_name, workspace_path)
 
             return workspace_path, result_proj_path
+        end
+
+        def add_playground_to_project()
+        end
+
+        def add_backyard_to_workspace(path_to_workspace)
+
+            base_name = "Backyard"
+            framework_name = base_name + "Framework"
+            playground_name = base_name + "Playground"
+
+            # Add framework target to xcodeproj
+            self.add_framework_target(framework_name, source_project_path)
+
+            # Add playground to workspace
+            self.add_playground_to_workspace(playground_name, framework_name, path_to_workspace)
+
+        end
+
+        def remove_backyard_from_workspace(path_to_workspace)
+
+            base_name = "Backyard"
+            framework_name = base_name + "Framework"
+            playground_name = base_name + "Playground"
+
+            self.remove_playground_from_workspace(playground_name, framework_name, path_to_workspace)
+
+            self.remove_framework_from_xcodeproj(framework_name)
+
         end
 
     end

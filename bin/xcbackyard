@@ -2,11 +2,31 @@
 
 require 'xcbackyard'
 
-proj_file = ARGV[0]
-result_dir = File.join(ARGV[1], "TestDir")
+command = ARGV[0]
 
-backyard = XCBackyard::BackyardBuilder.new(proj_file)
+if command == "build"
+    workspace_path = ARGV[1]
+    xcodeproj_path = ARGV[2]
+    
+    backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
+    backyard.add_backyard_to_workspace(workspace_path)
 
-workspace_path, result_proj_path = backyard.create_separate_workspace_with_backyard(result_dir)
+    system("open " + workspace_path)
+elsif command == "clear"
+    workspace_path = ARGV[1]
+    xcodeproj_path = ARGV[2]
+    
+    backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
+    backyard.remove_backyard_from_workspace(workspace_path)
+else
+    proj_file = ARGV[1]
+    result_dir = File.join(ARGV[2], "TestDir")
 
-system("open " + workspace_path)
+    backyard = XCBackyard::BackyardBuilder.new(proj_file)
+
+    workspace_path, result_proj_path = backyard.create_separate_workspace_with_backyard(result_dir)
+
+    system("open " + workspace_path)
+end
+
+
