@@ -34,9 +34,19 @@ elsif command == "clean"
 
     backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
     backyard.remove_backyard_from_workspace(workspace_path)
-else
-    proj_file = ARGV[1]
-    result_dir = File.join(ARGV[2], "TestDir")
+elsif command == "cp"
+    first_path = ARGV[1]
+    second_path = ARGV[2]
+
+    if File.extname(first_path) == "xcodeproj"
+        proj_file = first_path
+        exclude_dir = second_path
+    else
+        proj_file = File.join(Dir.pwd, Dir.glob("*.xcodeproj").first)
+        exclude_dir = first_path
+    end
+
+    result_dir = File.join(exclude_dir, File.basename(proj_file, '.*') + "-Backyard")
 
     backyard = XCBackyard::BackyardBuilder.new(proj_file)
 
