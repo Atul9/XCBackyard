@@ -8,14 +8,30 @@ if command == "build"
     workspace_path = ARGV[1]
     xcodeproj_path = ARGV[2]
     
+    if workspace_path.nil?
+        workspace_path = File.join(Dir.pwd, Dir.glob("*.xcworkspace").first)
+    end
+
+    if xcodeproj_path.nil?
+        xcodeproj_path = File.join(File.dirname(workspace_path), File.basename(workspace_path, ".*") + ".xcodeproj")
+    end
+
     backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
     backyard.add_backyard_to_workspace(workspace_path)
 
     system("open " + workspace_path)
-elsif command == "clear"
+elsif command == "clean"
     workspace_path = ARGV[1]
     xcodeproj_path = ARGV[2]
     
+    if workspace_path.nil?
+        workspace_path = File.join(Dir.pwd, Dir.glob("*.xcworkspace").first)
+    end
+
+    if xcodeproj_path.nil?
+        xcodeproj_path = File.join(File.dirname(workspace_path), File.basename(workspace_path, ".*") + ".xcodeproj")
+    end
+
     backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
     backyard.remove_backyard_from_workspace(workspace_path)
 else
