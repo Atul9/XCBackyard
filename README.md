@@ -7,7 +7,7 @@ xcBackyard is lightweight util which save your time for creation Swift Playgroun
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'xcbackyard'
+gem "xcbackyard", :git => "git://github.com/gregoryvit/XCBackyard.git"
 ```
 
 And then execute:
@@ -16,7 +16,7 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install xcbackyard
+    $ gem specific_install -l https://github.com/gregoryvit/XCBackyard.git
 
 ## Usage
 
