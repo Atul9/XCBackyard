@@ -8,16 +8,29 @@ if command == "build"
     workspace_path = ARGV[1]
     xcodeproj_path = ARGV[2]
     
+    project_name = ""
+
     if workspace_path.nil?
-        workspace_path = File.join(Dir.pwd, Dir.glob("*.xcworkspace").first)
+        existed_workspace_path = Dir.glob("*.xcworkspace").first
+        if not existed_workspace_path.nil?
+            workspace_path = File.join(Dir.pwd, existed_workspace_path)
+            gen_xcodeproj_path = File.join(File.dirname(workspace_path), File.basename(workspace_path, ".*") + ".xcodeproj")
+        else
+            gen_xcodeproj_path = Dir.glob("*.xcodeproj").first
+        end
     end
 
     if xcodeproj_path.nil?
-        xcodeproj_path = File.join(File.dirname(workspace_path), File.basename(workspace_path, ".*") + ".xcodeproj")
+        xcodeproj_path = gen_xcodeproj_path
     end
 
     backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
-    backyard.add_backyard_to_workspace(workspace_path)
+
+    if workspace_path.nil?
+        workspace_path = backyard.add_playground_to_project()
+    else
+        backyard.add_backyard_to_workspace(workspace_path)
+    end
 
     system("open " + workspace_path)
 elsif command == "clean"
@@ -25,11 +38,17 @@ elsif command == "clean"
     xcodeproj_path = ARGV[2]
     
     if workspace_path.nil?
-        workspace_path = File.join(Dir.pwd, Dir.glob("*.xcworkspace").first)
+        existed_workspace_path = Dir.glob("*.xcworkspace").first
+        if not existed_workspace_path.nil?
+            workspace_path = File.join(Dir.pwd, existed_workspace_path)
+            gen_xcodeproj_path = File.join(File.dirname(workspace_path), File.basename(workspace_path, ".*") + ".xcodeproj")
+        else
+            gen_xcodeproj_path = Dir.glob("*.xcodeproj").first
+        end
     end
 
     if xcodeproj_path.nil?
-        xcodeproj_path = File.join(File.dirname(workspace_path), File.basename(workspace_path, ".*") + ".xcodeproj")
+        xcodeproj_path = gen_xcodeproj_path
     end
 
     backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)

@@ -4,11 +4,16 @@ require 'erb'
 
 module XCBackyard
 
+    BASE_NAME = "Backyard"
+    BASE_NAME_SEPARATOR = "-"
     ROOT_PATH = Pathname.new(File.expand_path('..', __FILE__))
     TEMPLATES_DIR_PATH = Pathname.new(File.join(ROOT_PATH, "Templates"))
 
     class BackyardBuilder
         def initialize(source_project_path)
+            if not File.exist?(source_project_path)
+                source_project_path = source_project_path.sub! (BASE_NAME_SEPARATOR + BASE_NAME), ''
+            end
             @source_project_path = source_project_path
         end
 
@@ -221,11 +226,10 @@ module XCBackyard
             end
 
             # Remove framework files group
-            framework_group = project.groups.select { |group| group.path == framework_name }.first
-            if not framework_group.nil? 
+            project.groups.select { |group| group.path == framework_name or group.name == framework_name }.each { |framework_group| 
                 framework_group.clear
                 framework_group.remove_from_project
-            end
+            }
 
             project.files.each { |file| 
                 if file.path == framework_name + ".framework"
@@ -257,10 +261,10 @@ module XCBackyard
         # Copy xcodeproj to external path and wrap it into workspace with playground
         def create_separate_workspace_with_backyard(result_dir_path)
 
-            base_name = "Backyard"
+            base_name = BASE_NAME
             framework_name = base_name + "Framework"
             playground_name = base_name + "Playground"
-            workspace_name = File.basename(source_project_path, ".*") + "-" + base_name
+            workspace_name = File.basename(source_project_path, ".*") + BASE_NAME_SEPARATOR + base_name
 
             # Copy xcodeproj and update paths
             result_proj_path = self.copy_xcodeproj_file(result_dir_path)
@@ -279,11 +283,27 @@ module XCBackyard
         end
 
         def add_playground_to_project()
+            base_name = BASE_NAME
+            framework_name = base_name + "Framework"
+            playground_name = base_name + "Playground"
+            workspace_name = File.basename(source_project_path, ".*") + BASE_NAME_SEPARATOR + base_name
+            result_dir_path = File.dirname(source_project_path)
+            
+            # Add framework target to xcodeproj
+            self.add_framework_target(framework_name, source_project_path)
+
+            # Create workspace with result xcodeproj
+            workspace_path = self.create_workspace(workspace_name, result_dir_path, source_project_path)
+
+             # Add playground to workspace
+            self.add_playground_to_workspace(playground_name, framework_name, workspace_path)
+
+            return workspace_path
         end
 
         def add_backyard_to_workspace(path_to_workspace)
 
-            base_name = "Backyard"
+            base_name = BASE_NAME
             framework_name = base_name + "Framework"
             playground_name = base_name + "Playground"
 
@@ -297,11 +317,17 @@ module XCBackyard
 
         def remove_backyard_from_workspace(path_to_workspace)
 
-            base_name = "Backyard"
+            base_name = BASE_NAME
             framework_name = base_name + "Framework"
             playground_name = base_name + "Playground"
 
-            self.remove_playground_from_workspace(playground_name, framework_name, path_to_workspace)
+            if not path_to_workspace.nil?
+                self.remove_playground_from_workspace(playground_name, framework_name, path_to_workspace)
+                
+                if File.basename(path_to_workspace, ".*").include? (BASE_NAME_SEPARATOR + BASE_NAME)
+                    FileUtils.rm_r(path_to_workspace)
+                end
+            end
 
             self.remove_framework_from_xcodeproj(framework_name)
 
