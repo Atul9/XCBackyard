@@ -2,27 +2,9 @@
 
 require 'xcbackyard'
 
-command = ARGV[0]
-
-if command == "build"
-    workspace_path = ARGV[1]
-    xcodeproj_path = ARGV[2]
-    
+# Add playground to project
+def build(workspace_path, xcodeproj_path)
     project_name = ""
-
-    if workspace_path.nil?
-        existed_workspace_path = Dir.glob("*.xcworkspace").first
-        if not existed_workspace_path.nil?
-            workspace_path = File.join(Dir.pwd, existed_workspace_path)
-            gen_xcodeproj_path = File.join(File.dirname(workspace_path), File.basename(workspace_path, ".*") + ".xcodeproj")
-        else
-            gen_xcodeproj_path = Dir.glob("*.xcodeproj").first
-        end
-    end
-
-    if xcodeproj_path.nil?
-        xcodeproj_path = gen_xcodeproj_path
-    end
 
     backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
 
@@ -33,10 +15,28 @@ if command == "build"
     end
 
     system("open " + workspace_path)
-elsif command == "clean"
-    workspace_path = ARGV[1]
-    xcodeproj_path = ARGV[2]
-    
+end
+
+# Remove playground from project
+def clean(workspace_path, xcodeproj_path)
+    backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
+    backyard.remove_backyard_from_workspace(workspace_path)
+end
+
+# Create workspace in separate directory and copy reference to source project
+def copy(path_to_xcodeproj, destination_dir)
+    result_dir = File.join(exclude_dir, File.basename(proj_file, '.*') + "-Backyard")
+
+    backyard = XCBackyard::BackyardBuilder.new(proj_file)
+
+    workspace_path, result_proj_path = backyard.create_separate_workspace_with_backyard(result_dir)
+
+    system("open " + workspace_path)
+end
+
+# Options parse
+
+def configure_paths(workspace_path, xcodeproj_path)
     if workspace_path.nil?
         existed_workspace_path = Dir.glob("*.xcworkspace").first
         if not existed_workspace_path.nil?
@@ -51,27 +51,36 @@ elsif command == "clean"
         xcodeproj_path = gen_xcodeproj_path
     end
 
-    backyard = XCBackyard::BackyardBuilder.new(xcodeproj_path)
-    backyard.remove_backyard_from_workspace(workspace_path)
+    return workspace_path, xcodeproj_path
+end
+
+command = ARGV[0]
+
+if command == "build"
+    workspace_path = ARGV[1]
+    xcodeproj_path = ARGV[2]
+
+    workspace_path, xcodeproj_path = configure_paths(workspace_path, xcodeproj_path)
+    build(workspace_path, xcodeproj_path)
+elsif command == "clean"
+    workspace_path = ARGV[1]
+    xcodeproj_path = ARGV[2]
+
+    workspace_path, xcodeproj_path = configure_paths(workspace_path, xcodeproj_path)
+    clean(workspace_path, xcodeproj_path)
 elsif command == "cp"
     first_path = ARGV[1]
     second_path = ARGV[2]
 
     if File.extname(first_path) == "xcodeproj"
-        proj_file = first_path
+        path_to_xcodeproj = first_path
         exclude_dir = second_path
     else
-        proj_file = File.join(Dir.pwd, Dir.glob("*.xcodeproj").first)
+        path_to_xcodeproj = File.join(Dir.pwd, Dir.glob("*.xcodeproj").first)
         exclude_dir = first_path
     end
 
-    result_dir = File.join(exclude_dir, File.basename(proj_file, '.*') + "-Backyard")
-
-    backyard = XCBackyard::BackyardBuilder.new(proj_file)
-
-    workspace_path, result_proj_path = backyard.create_separate_workspace_with_backyard(result_dir)
-
-    system("open " + workspace_path)
+    copy(path_to_xcodeproj, exclude_dir)
 end
 
 
